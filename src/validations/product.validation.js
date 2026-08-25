@@ -1,0 +1,106 @@
+const { body, param } = require('express-validator');
+const { PRODUCT_STATUS } = require('../models/Product');
+const handleValidation = require('../middleware/validation.middleware');
+
+const productFields = [
+    body('title').optional().isString().withMessage('Title must be a string').trim()
+        .isLength({ min: 2, max: 150 }).withMessage('Title must be between 2 and 150 characters'),
+    body('description').optional().isString().withMessage('Description must be a string').trim()
+        .isLength({ min: 1, max: 5000 }).withMessage('Description must be between 1 and 5000 characters'),
+    body('price').optional().isFloat({ min: 0 }).withMessage('Price must be a non-negative number').toFloat(),
+    body('compareAtPrice').optional({ nullable: true }).isFloat({ min: 0 })
+        .withMessage('Compare-at price must be a non-negative number').toFloat()
+        .custom((value, { req }) => {
+            if (value != null && req.body.price !== undefined && value < Number(req.body.price)) {
+                throw new Error('Compare-at price must be greater than or equal to price');
+            }
+            return true;
+        }),
+    body('currency').optional().isString().withMessage('Currency must be a string').trim()
+        .matches(/^[A-Za-z]{3}$/).withMessage('Currency must be a 3-letter ISO code').toUpperCase(),
+    body('categories').optional().isArray({ min: 1 }).withMessage('At least one category is required'),
+    body('categories.*').isMongoId().withMessage('Every category must be a valid MongoDB ID'),
+    body('image').optional().isObject().withMessage('Image must be an object'),
+    body('image.url').optional().isURL({ protocols: ['http', 'https'], require_protocol: true })
+        .withMessage('Product image URL must be a valid HTTP or HTTPS URL'),
+    body('image.publicId').optional({ nullable: true }).isString().withMessage('Image publicId must be a string').trim(),
+    body('image.altText').optional().isString().withMessage('Image alt text must be a string').trim()
+        .isLength({ max: 150 }).withMessage('Image alt text cannot exceed 150 characters'),
+    body('gallery').optional().isArray({ max: 10 }).withMessage('Gallery must contain at most 10 images'),
+    body('gallery.*.url').optional().isURL({ protocols: ['http', 'https'], require_protocol: true })
+        .withMessage('Every gallery image must have a valid HTTP or HTTPS URL'),
+    body('gallery.*.publicId').optional({ nullable: true }).isString().withMessage('Gallery publicId must be a string').trim(),
+    body('gallery.*.altText').optional().isString().withMessage('Gallery alt text must be a string').trim()
+        .isLength({ max: 150 }).withMessage('Gallery alt text cannot exceed 150 characters'),
+    body('sku').optional().isString().withMessage('SKU must be a string').trim().notEmpty().withMessage('SKU cannot be empty').toUpperCase(),
+    body('brand').optional().isString().withMessage('Brand must be a string').trim()
+        .isLength({ max: 100 }).withMessage('Brand cannot exceed 100 characters'),
+    body('tags').optional().isArray().withMessage('Tags must be an array'),
+    body('tags.*').optional().isString().withMessage('Every tag must be a string').trim().notEmpty().withMessage('Tags cannot be empty'),
+    body('stock').optional().isInt({ min: 0 }).withMessage('Stock must be a non-negative whole number').toInt(),
+    body('status').optional().isIn(Object.values(PRODUCT_STATUS)).withMessage('Status must be draft, active, or archived'),
+    body('isFeatured').optional().isBoolean().withMessage('isFeatured must be true or false').toBoolean(),
+];
+
+const validateCreateProduct = [
+    body('title').exists({ values: 'falsy' }).withMessage('Product title is required'),
+    body('description').exists({ values: 'falsy' }).withMessage('Product description is required'),
+    body('price').exists({ values: 'null' }).withMessage('Product price is required'),
+    body('categories').exists().withMessage('Product categories are required'),
+    body('image').exists().withMessage('Product image is required'),
+    body('image.url').exists({ values: 'falsy' }).withMessage('Product image URL is required'),
+    ...productFields,
+    handleValidation,
+];
+
+// Multipart product creation receives the image as req.file. Cloudinary adds
+// image.url and image.publicId after validation, so those body fields must not
+// be required on the upload route.
+const validateCreateProductUpload = [
+    body('title').exists({ values: 'falsy' }).withMessage('Product title is required'),
+    body('description').exists({ values: 'falsy' }).withMessage('Product description is required'),
+    body('price').exists({ values: 'null' }).withMessage('Product price is required'),
+    body('categories').exists().withMessage('Product categories are required'),
+    ...productFields,
+    handleValidation,
+];
+
+const validateUpdateProduct = [
+    body().custom((value, { req }) => {
+        const allowed = ['title', 'description', 'price', 'compareAtPrice', 'currency', 'categories', 'image',
+            'gallery', 'sku', 'brand', 'tags', 'stock', 'status', 'isFeatured', 'replaceGallery',
+            'removeGalleryPublicIds'];
+        const hasFiles = Boolean(req.files?.image?.length || req.files?.gallery?.length);
+        if (!hasFiles && (!value || !allowed.some((field) => value[field] !== undefined))) {
+            throw new Error('Provide at least one product field to update');
+        }
+        return true;
+    }),
+    body('replaceGallery').optional().isBoolean().withMessage('replaceGallery must be true or false').toBoolean(),
+    body('removeGalleryPublicIds').optional().customSanitizer((value) => {
+        if (Array.isArray(value)) return value;
+        if (typeof value !== 'string') return value;
+        try {
+            const parsed = JSON.parse(value);
+            return Array.isArray(parsed) ? parsed : [value];
+        } catch {
+            return value.split(',').map((item) => item.trim()).filter(Boolean);
+        }
+    }).isArray().withMessage('removeGalleryPublicIds must be an array'),
+    body('removeGalleryPublicIds.*').isString().withMessage('Every gallery publicId must be a string').trim().notEmpty()
+        .withMessage('Gallery publicIds cannot be empty'),
+    ...productFields,
+    handleValidation,
+];
+
+const validateProductId = [
+    param('id').isMongoId().withMessage('Invalid product ID'),
+    handleValidation,
+];
+
+module.exports = {
+    validateCreateProduct,
+    validateCreateProductUpload,
+    validateUpdateProduct,
+    validateProductId,
+};
