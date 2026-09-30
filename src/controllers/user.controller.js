@@ -12,7 +12,7 @@ const updateUserRole = async (req, res, next) => {
         const user = await User.findByIdAndUpdate(
             req.params.id,
             { role: req.body.role },
-            { new: true, runValidators: true }
+            { returnDocument: 'after', runValidators: true }
         );
 
         if (!user) {

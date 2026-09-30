@@ -36,5 +36,14 @@ test('rejects zero as an updated cart quantity', async () => {
         .send({ quantity: 0 });
 
     assert.equal(response.status, 400);
-    assert.equal(response.body.errors[0].message, 'Quantity must be a whole number of at least 1');
+    assert.equal(response.body.errors[0].message, 'Quantity must be a whole number between 1 and 1000');
+});
+
+test('rejects excessive cart quantity with a clear limit', async () => {
+    const response = await request(app)
+        .post('/cart/items')
+        .send({ productId: '507f1f77bcf86cd799439011', quantity: 1001 });
+
+    assert.equal(response.status, 400);
+    assert.equal(response.body.errors[0].message, 'Quantity must be a whole number between 1 and 1000');
 });

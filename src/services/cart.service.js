@@ -1,6 +1,7 @@
 const mongoose = require('mongoose');
 const Cart = require('../models/Cart');
 const Product = require('../models/Product');
+const { MAX_CART_QUANTITY } = require('../utils/inputLimits');
 
 const ensureValidProductId = (productId) => {
     if (!mongoose.isObjectIdOrHexString(productId)) {
@@ -55,6 +56,12 @@ const addItem = async (userId, productId, quantity) => {
     const cart = await getCartDocument(userId);
     const item = cart.items.find((entry) => String(entry.product) === String(productId));
     const newQuantity = (item?.quantity || 0) + quantity;
+
+    if (newQuantity > MAX_CART_QUANTITY) {
+        const error = new Error(`Cart quantity cannot exceed ${MAX_CART_QUANTITY}`);
+        error.statusCode = 400;
+        throw error;
+    }
 
     if (item) item.quantity = newQuantity;
     else cart.items.push({ product: product._id, quantity });

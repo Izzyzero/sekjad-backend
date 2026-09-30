@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const { MAX_CART_QUANTITY } = require('../utils/inputLimits');
 
 const cartItemSchema = new mongoose.Schema(
     {
@@ -11,6 +12,7 @@ const cartItemSchema = new mongoose.Schema(
             type: Number,
             required: true,
             min: [1, 'Cart quantity must be at least 1'],
+            max: [MAX_CART_QUANTITY, `Cart quantity cannot exceed ${MAX_CART_QUANTITY}`],
             validate: {
                 validator: Number.isInteger,
                 message: 'Cart quantity must be a whole number',

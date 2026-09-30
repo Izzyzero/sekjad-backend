@@ -3,6 +3,7 @@ const { upload } = require('../utils/cloudinaryUpload');
 const uploadController = require('../controllers/upload.controller');
 const authenticate = require('../middleware/auth.middleware');
 const requireAdmin = require('../middleware/admin.middleware');
+const { protectUpload } = require('../middleware/uploadLimits.middleware');
 const { handleUploadError } = require('../middleware/upload.middleware');
 const {
     validateCreateProductUpload,
@@ -20,6 +21,7 @@ router.post(
     '/product',
     authenticate,
     requireAdmin,
+    protectUpload,
     upload.fields([
         { name: 'image', maxCount: 1 },
         { name: 'gallery', maxCount: 10 },
@@ -32,13 +34,16 @@ router.post(
 /**
  * POST /api/upload/image
  * Upload a standalone image
- * Access: Private
+ * Access: Private (Admin only)
  * Body: multipart/form-data with file
  */
 router.post(
     '/image',
     authenticate,
+    requireAdmin,
+    protectUpload,
     upload.single('image'),
+    handleUploadError,
     uploadController.uploadImage
 );
 

@@ -2,6 +2,7 @@ const express = require('express');
 const productController = require('../controllers/product.controller');
 const authenticate = require('../middleware/auth.middleware');
 const requireAdmin = require('../middleware/admin.middleware');
+const { protectUpload } = require('../middleware/uploadLimits.middleware');
 const { upload } = require('../utils/cloudinaryUpload');
 const { handleUploadError } = require('../middleware/upload.middleware');
 const {
@@ -20,12 +21,13 @@ router.patch(
     '/:id',
     authenticate,
     requireAdmin,
+    validateProductId,
+    protectUpload,
     upload.fields([
         { name: 'image', maxCount: 1 },
         { name: 'gallery', maxCount: 10 },
     ]),
     handleUploadError,
-    validateProductId,
     validateUpdateProduct,
     productController.updateProduct
 );

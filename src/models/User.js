@@ -9,20 +9,19 @@ const userSchema = new mongoose.Schema(
     {
         firstName: {
             type: String,
-            required: [true, 'First name is required'],
+            required: [function () { return !this.googleId; }, 'First name is required'],
             trim: true,
             maxlength: [50, 'First name cannot exceed 50 characters'],
         },
         lastName: {
             type: String,
-            required: [true, 'Last name is required'],
+            required: [function () { return !this.googleId; }, 'Last name is required'],
             trim: true,
             maxlength: [50, 'Last name cannot exceed 50 characters'],
         },
         phoneNumber: {
             type: String,
-            required: [true, 'Phone number is required'],
-            unique: true,
+            required: [function () { return !this.googleId; }, 'Phone number is required'],
             trim: true,
             match: [/^\+?[1-9]\d{7,14}$/, 'Please provide a valid phone number'],
         },
@@ -36,10 +35,11 @@ const userSchema = new mongoose.Schema(
         },
         password: {
             type: String,
-            required: [true, 'Password is required'],
+            required: [function () { return !this.googleId; }, 'Password is required'],
             minlength: [8, 'Password must be at least 8 characters'],
             select: false,
         },
+        googleId: { type: String, select: false },
         role: {
             type: String,
             enum: {
@@ -62,12 +62,15 @@ const userSchema = new mongoose.Schema(
         toJSON: {
             transform: (_document, returnedObject) => {
                 delete returnedObject.password;
+                delete returnedObject.googleId;
                 return returnedObject;
             },
         },
     }
 );
 
+userSchema.index({ phoneNumber: 1 }, { unique: true, partialFilterExpression: { phoneNumber: { $type: 'string' } } });
+userSchema.index({ googleId: 1 }, { unique: true, partialFilterExpression: { googleId: { $type: 'string' } } });
 const User = mongoose.models.User || mongoose.model('User', userSchema);
 
 module.exports = User;

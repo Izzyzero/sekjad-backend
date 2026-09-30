@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const { MAX_PRODUCT_PRICE } = require('../utils/inputLimits');
 
 const PRODUCT_STATUS = Object.freeze({
     DRAFT: 'draft',
@@ -54,10 +55,12 @@ const productSchema = new mongoose.Schema(
             type: Number,
             required: [true, 'Product price is required'],
             min: [0, 'Product price cannot be negative'],
+            max: [MAX_PRODUCT_PRICE, `Product price cannot exceed ${MAX_PRODUCT_PRICE}`],
         },
         compareAtPrice: {
             type: Number,
             min: [0, 'Compare-at price cannot be negative'],
+            max: [MAX_PRODUCT_PRICE, `Compare-at price cannot exceed ${MAX_PRODUCT_PRICE}`],
             default: null,
             validate: {
                 validator(value) {
@@ -110,15 +113,8 @@ const productSchema = new mongoose.Schema(
             default: [],
             set: (tags) => [...new Set(tags.map((tag) => tag.trim().toLowerCase()).filter(Boolean))],
         },
-        stock: {
-            type: Number,
-            min: [0, 'Stock cannot be negative'],
-            default: 0,
-            validate: {
-                validator: Number.isInteger,
-                message: 'Stock must be a whole number',
-            },
-        },
+        // Retain old database values without exposing or requiring inventory.
+        stock: { type: Number, select: false },
         status: {
             type: String,
             enum: {
@@ -156,7 +152,7 @@ const productSchema = new mongoose.Schema(
 );
 
 productSchema.virtual('inStock').get(function getInStock() {
-    return this.stock > 0;
+    return true;
 });
 
 productSchema.path('categories').validate(

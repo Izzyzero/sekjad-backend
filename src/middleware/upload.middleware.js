@@ -7,6 +7,8 @@
  * Handle multer errors
  */
 const handleUploadError = (error, req, res, next) => {
+    // Preserve authentication/authorization and other upstream HTTP errors.
+    if (error?.statusCode) return next(error);
     if (error) {
         if (error.code === 'LIMIT_FILE_SIZE') {
             return res.status(413).json({

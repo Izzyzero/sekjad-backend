@@ -51,9 +51,10 @@ const validateCategories = async (categories) => {
 };
 
 const createProduct = async (productData, adminId) => {
+    const { stock, ...details } = productData;
     const categories = await validateCategories(productData.categories);
     const product = await Product.create({
-        ...productData,
+        ...details,
         categories,
         createdBy: adminId,
     });
@@ -75,7 +76,7 @@ const getProductById = async (productId) => {
         throw error;
     }
 
-    return product;
+    return { ...product, inStock: true };
 };
 
 const updateProduct = async (productId, changes, imageBuffer, galleryBuffers = []) => {
@@ -100,7 +101,6 @@ const updateProduct = async (productId, changes, imageBuffer, galleryBuffers = [
         'sku',
         'brand',
         'tags',
-        'stock',
         'status',
         'isFeatured',
     ];
@@ -279,7 +279,7 @@ const getAllProducts = async (query = {}) => {
     ]);
 
     return {
-        products,
+        products: products.map((product) => ({ ...product, inStock: true })),
         pagination: {
             page,
             limit,

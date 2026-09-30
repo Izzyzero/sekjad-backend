@@ -52,14 +52,14 @@ const uploadImage = async (req, res, next) => {
             const stream = cloudinary.uploader.upload_stream(
                 {
                     folder: 'sekjad_uploads',
-                    resource_type: 'auto',
+                    resource_type: 'image',
+                    allowed_formats: ['jpg', 'jpeg', 'png', 'gif', 'webp'],
                 },
                 (error, result) => {
                     if (error) {
                         res.status(500).json({
                             success: false,
                             message: 'Image upload failed',
-                            error: error.message,
                         });
                         resolve();
                         return;
