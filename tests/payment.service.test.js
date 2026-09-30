@@ -8,6 +8,30 @@ const payment = require('../src/services/payment.service');
 const env = require('../src/config/env');
 test.beforeEach(() => { env.paystackEnabled = true; });
 
+for (const change of [{ status: 'draft' }, { status: 'archived' }, { quantity: 0 }, { quantity: 1.5 }, { quantity: 1001 }]) {
+    test(`checkout rejects unavailable products or invalid quantities: ${JSON.stringify(change)}`, async (t) => {
+        const product = { price: 10, currency: 'NGN', status: change.status || 'active' };
+        t.mock.method(Cart, 'findOne', () => ({ populate: async () => ({ items: [{ product, quantity: change.quantity ?? 1 }] }) }));
+        t.mock.method(Order, 'create', () => assert.fail('Invalid checkout must not create an order'));
+        await assert.rejects(payment.initialize({ _id: 'user' }), { statusCode: 400 });
+    });
+}
+
+for (const status of ['failed', 'abandoned']) {
+    test(`a delayed ${status} verification cannot overwrite a paid order`, async (t) => {
+        const order = { _id: 'order', reference: 'ref', amount: 100, currency: 'NGN', paymentStatus: 'pending' };
+        const persisted = { ...order, paymentStatus: 'paid' };
+        t.mock.method(Order, 'findOne', async () => order);
+        t.mock.method(paystack, 'verify', async () => ({ reference: 'ref', amount: 100, currency: 'NGN', status }));
+        t.mock.method(Order, 'updateOne', async (filter, update) => {
+            assert.equal(filter.paymentStatus, 'pending');
+            if (filter.paymentStatus === persisted.paymentStatus) Object.assign(persisted, update.$set);
+        });
+        t.mock.method(Order, 'findById', async () => persisted);
+        assert.equal((await payment.verify('ref', { _id: 'user' })).paymentStatus, 'paid');
+    });
+}
+
 test('new Paystack payments are disabled when WhatsApp checkout is selected', async (t) => {
     env.paystackEnabled = false;
     t.mock.method(Cart, 'findOne', () => assert.fail('Disabled checkout must not read the cart'));

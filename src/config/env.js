@@ -1,6 +1,6 @@
 // placeholder file for src/config/env.js
 const dotenv = require('dotenv');
-dotenv.config();
+if (process.env.NODE_ENV !== 'test') dotenv.config();
 
 
 const envObj={

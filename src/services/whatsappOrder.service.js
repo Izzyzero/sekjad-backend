@@ -69,6 +69,7 @@ const create = async (user, idempotencyKey) => {
         if (!product) {
             throw fail(400, 'A product in your cart no longer exists. Please remove it and try again');
         }
+        if (product.status !== 'active') throw fail(400, 'A product in your cart is no longer available');
         if (!Number.isSafeInteger(quantity) || quantity < 1 || quantity > MAX_CART_QUANTITY) {
             throw fail(400, 'Cart contains an invalid quantity');
         }

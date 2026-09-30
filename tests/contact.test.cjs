@@ -1,7 +1,7 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const { createRequire } = require('node:module');
-const backend = createRequire('C:/Users/hp/Desktop/sekjad-backend/package.json');
+const backend = createRequire(require.resolve('../package.json'));
 const express = backend('express');
 const request = backend('supertest');
 const env = backend('./src/config/env');

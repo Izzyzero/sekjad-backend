@@ -3,6 +3,7 @@ const Cart = require('../models/Cart');
 const Order = require('../models/Order');
 const paystack = require('../config/paystack');
 const env = require('../config/env');
+const { MAX_CART_QUANTITY } = require('../utils/inputLimits');
 
 const badRequest = (message) => {
     const error = new Error(message);
@@ -24,6 +25,10 @@ const initialize = async (user) => {
     const items = cart.items.map(({ product, quantity }) => {
         if (!product) {
             throw badRequest('A product in your cart no longer exists. Please remove it and try again');
+        }
+        if (product.status !== 'active') throw badRequest('A product in your cart is no longer available');
+        if (!Number.isSafeInteger(quantity) || quantity < 1 || quantity > MAX_CART_QUANTITY) {
+            throw badRequest('Cart contains an invalid quantity');
         }
         if (product.currency !== 'NGN') throw badRequest('Only NGN products are supported');
         const unitAmount = Math.round(product.price * 100);
@@ -76,7 +81,8 @@ const applyVerification = async (order, transaction) => {
         );
     } else if (['failed', 'abandoned', 'reversed'].includes(transaction.status)) {
         await Order.updateOne(
-            { _id: order._id, paymentStatus: { $ne: 'failed' } },
+            // A delayed failed/abandoned response must not undo a successful webhook.
+            { _id: order._id, paymentStatus: transaction.status === 'reversed' ? { $ne: 'failed' } : 'pending' },
             { $set: { paymentStatus: 'failed', paidAt: null } }
         );
     }

@@ -3,6 +3,17 @@ const cors = require('cors');
 const cookieParser = require('cookie-parser');
 const envObj = require('./config/env');
 const app = express();
+app.disable('x-powered-by');
+app.use((_req, res, next) => {
+    res.set('X-Content-Type-Options', 'nosniff');
+    res.set('X-Frame-Options', 'DENY');
+    res.set('Referrer-Policy', 'no-referrer');
+    res.set('Cache-Control', 'no-store');
+    if (process.env.NODE_ENV === 'production') {
+        res.set('Strict-Transport-Security', 'max-age=31536000');
+    }
+    next();
+});
 require('./config/proxy').configureProxy(app);
 const mongoose = require('mongoose');
 const { createHealthHandler } = require('./health');

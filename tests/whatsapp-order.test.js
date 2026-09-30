@@ -40,6 +40,15 @@ function fixture(t) {
     return { user, product, state };
 }
 
+for (const status of ['draft', 'archived']) {
+    test(`WhatsApp checkout rejects ${status} products before saving`, async (t) => {
+        const { user, product, state } = fixture(t);
+        product.status = status;
+        await assert.rejects(service.create(user, randomUUID()), { statusCode: 400 });
+        assert.equal(state.orders.length, 0);
+    });
+}
+
 test('WhatsApp checkout snapshots server prices, keeps payment pending and encodes all cart details', async (t) => {
     const { user, state } = fixture(t);
     const result = await service.create(user, randomUUID());
@@ -135,10 +144,10 @@ for (const [label, modify] of [
 }
 
 for (const stock of [0, 1, undefined]) {
-    test(`checkout accepts products with stock ${stock} without availability checks`, async (t) => {
+    test(`checkout accepts active products with legacy stock ${stock}`, async (t) => {
         const { user, product } = fixture(t);
         product.stock = stock;
-        product.status = 'draft';
+        product.status = 'active';
         const result = await service.create(user, randomUUID());
         assert.equal(result.created, true);
         assert.equal(result.data.paymentStatus, 'pending');

@@ -14,7 +14,7 @@ const ensureValidProductId = (productId) => {
 const getProduct = async (productId) => {
     ensureValidProductId(productId);
     const product = await Product.findById(productId);
-    if (!product) {
+    if (!product || product.status !== 'active') {
         const error = new Error('Product not found');
         error.statusCode = 404;
         throw error;

@@ -1,0 +1,39 @@
+services:
+  - type: web
+    name: sekjad-backend
+    runtime: node
+    branch: main
+    buildCommand: npm ci --include=dev && npm test && npm prune --omit=dev
+    startCommand: npm start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: ACCESS_TOKEN_SECRET
+        generateValue: true
+      - key: REFRESH_TOKEN_SECRET
+        generateValue: true
+      - key: SALT
+        value: "12"
+      - key: PAYSTACK_ENABLED
+        value: "false"
+      - key: MONGO_URI
+        sync: false
+      - key: BASE_URL
+        value: https://sekjad.com
+      - key: FRONTEND_ORIGIN
+        value: https://sekjad.com
+      - key: CLOUD_NAME
+        sync: false
+      - key: CLOUD_API_KEY
+        sync: false
+      - key: CLOUD_API_SECRET
+        sync: false
+      - key: RESEND_API_KEY
+        sync: false
+      - key: MAIL_FROM
+        sync: false
+      - key: CONTACT_TO
+        sync: false
+      - key: WHATSAPP_ORDER_NUMBER
+        sync: false
