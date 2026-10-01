@@ -13,6 +13,9 @@ const {
 
 const router = express.Router();
 
+// Only the bounded landing-page previews are public.
+router.get('/preview/featured', productController.getFeaturedPreview);
+router.get('/preview/latest', productController.getLatestPreview);
 router.get('/', authenticate, productController.getAllProducts);
 router.get('/:id', authenticate, validateProductId, productController.getProductById);
 
