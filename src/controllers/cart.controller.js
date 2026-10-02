@@ -10,21 +10,26 @@ const getCart = async (req, res, next) => {
 
 const addItem = async (req, res, next) => {
     try {
-        const cart = await cartService.addItem(req.user._id, req.body.productId, req.body.quantity ?? 1);
+        const cart = await cartService.addItem(
+            req.user._id,
+            req.body.productId,
+            req.body.variantId,
+            req.body.quantity ?? 1
+        );
         return respond(res, 'Product added to cart', cart);
     } catch (error) { return next(error); }
 };
 
 const updateItemQuantity = async (req, res, next) => {
     try {
-        const cart = await cartService.updateItemQuantity(req.user._id, req.params.productId, req.body.quantity);
+        const cart = await cartService.updateItemQuantity(req.user._id, req.params.cartItemId, req.body.quantity);
         return respond(res, 'Cart quantity updated', cart);
     } catch (error) { return next(error); }
 };
 
 const removeItem = async (req, res, next) => {
     try {
-        return respond(res, 'Product removed from cart', await cartService.removeItem(req.user._id, req.params.productId));
+        return respond(res, 'Product removed from cart', await cartService.removeItem(req.user._id, req.params.cartItemId));
     } catch (error) { return next(error); }
 };
 

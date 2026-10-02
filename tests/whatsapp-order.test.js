@@ -103,16 +103,17 @@ test('older saved orders without product links still produce a message', async (
     assert.ok(!result.data.message.includes('javascript:'));
 });
 
-test('retries reuse the saved snapshot even after the cart changes', async (t) => {
+test('the same idempotency key creates a distinct order after cart quantities change', async (t) => {
     const { user, state } = fixture(t);
     const key = randomUUID();
     const first = await service.create(user, key);
-    state.cart = { items: [] };
+    state.cart.items[0].quantity = 1;
     const repeat = await service.create(user, key);
-    assert.equal(repeat.created, false);
-    assert.deepEqual(repeat.data, first.data);
-    assert.equal(state.orders.length, 1);
-    assert.equal(state.cartReads, 1);
+    assert.equal(repeat.created, true);
+    assert.notEqual(repeat.data.reference, first.data.reference);
+    assert.equal(repeat.data.items[0].quantity, 1);
+    assert.equal(state.orders.length, 2);
+    assert.equal(state.cartReads, 2);
 });
 
 test('concurrent duplicate-key insert returns the same saved order', async (t) => {

@@ -29,6 +29,30 @@ const imageSchema = new mongoose.Schema(
     { _id: false }
 );
 
+const variantSchema = new mongoose.Schema(
+    {
+        variantId: {
+            type: mongoose.Schema.Types.ObjectId,
+            default: () => new mongoose.Types.ObjectId(),
+        },
+        colorName: {
+            type: String,
+            required: [true, 'Variant color name is required'],
+            trim: true,
+            maxlength: [80, 'Variant color name cannot exceed 80 characters'],
+        },
+        image: {
+            type: imageSchema,
+            required: [true, 'Variant image is required'],
+        },
+        isAvailable: {
+            type: Boolean,
+            default: true,
+        },
+    },
+    { _id: false }
+);
+
 const productSchema = new mongoose.Schema(
     {
         title: {
@@ -93,6 +117,16 @@ const productSchema = new mongoose.Schema(
             validate: {
                 validator: (images) => images.length <= 10,
                 message: 'A product can have at most 10 gallery images',
+            },
+        },
+        variants: {
+            type: [variantSchema],
+            default: [],
+            validate: {
+                validator(variants) {
+                    return new Set(variants.map((variant) => String(variant.variantId))).size === variants.length;
+                },
+                message: 'Variant IDs must be unique within a product',
             },
         },
         sku: {

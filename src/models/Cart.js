@@ -3,10 +3,18 @@ const { MAX_CART_QUANTITY } = require('../utils/inputLimits');
 
 const cartItemSchema = new mongoose.Schema(
     {
+        cartItemId: {
+            type: mongoose.Schema.Types.ObjectId,
+            default: null,
+        },
         product: {
             type: mongoose.Schema.Types.ObjectId,
             ref: 'Product',
             required: [true, 'Cart product is required'],
+        },
+        variantId: {
+            type: mongoose.Schema.Types.ObjectId,
+            default: null,
         },
         quantity: {
             type: Number,
@@ -36,9 +44,10 @@ const cartSchema = new mongoose.Schema(
             default: [],
             validate: {
                 validator(items) {
-                    return new Set(items.map((item) => String(item.product))).size === items.length;
+                    const identities = items.map((item) => `${item.product}:${item.variantId || ''}`);
+                    return new Set(identities).size === identities.length;
                 },
-                message: 'A product cannot appear in a cart more than once',
+                message: 'A product variant cannot appear in a cart more than once',
             },
         },
     },

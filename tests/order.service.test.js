@@ -85,6 +85,30 @@ test('admin can retrieve a single order with customer and purchased items', asyn
     }
 });
 
+test('customer and admin order details preserve color snapshots', async () => {
+    const orderId = '507f1f77bcf86cd799439011';
+    const item = {
+        product: '507f1f77bcf86cd799439012',
+        title: 'Everyday Bag',
+        variantId: '507f1f77bcf86cd799439101',
+        colorName: 'Red',
+        variantImageUrl: 'https://images.example/bag-red.jpg',
+        quantity: 2,
+        unitAmount: 125000,
+    };
+    const order = { paymentStatus: 'pending', items: [item], amount: 250000 };
+    mock.method(Order, 'findOne', () => ({ lean: async () => order }));
+    mock.method(Order, 'findById', () => ({ populate: () => ({ lean: async () => order }) }));
+    try {
+        const customerOrder = await orderService.getOrder('507f1f77bcf86cd799439099', orderId);
+        const adminOrder = await orderService.getAdminOrder(orderId);
+        assert.deepEqual(customerOrder.items, [item]);
+        assert.deepEqual(adminOrder.items, [item]);
+    } finally {
+        mock.restoreAll();
+    }
+});
+
 test('admin can confirm a pending WhatsApp order and mark it paid', async () => {
     const orderId = '507f1f77bcf86cd799439011';
     const order = {

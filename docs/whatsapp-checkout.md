@@ -19,7 +19,7 @@ Content-Type: application/json
 {}
 ```
 
-The server reads only the authenticated user's saved cart. Client-supplied products, prices, totals, user IDs and payment statuses are ignored. All existing products can be ordered without stock or availability checks. Quantities and NGN prices are still validated; deleted/missing products must be removed from the cart. The server saves an order snapshot using the existing minor-unit amount convention. Shipping charges are agreed on WhatsApp and are not included in the items total.
+The server reads only the authenticated user's saved cart. Client-supplied products, prices, totals, user IDs and payment statuses are ignored. Products must be active, selected variants must belong to their product and be available, and products with color variants require a selection. No inventory count is tracked or reserved. Quantities and NGN prices are validated; deleted/missing products must be removed from the cart. The server saves an order snapshot using the existing minor-unit amount convention. Shipping charges are agreed on WhatsApp and are not included in the items total.
 
 `201` response (`200` when retrying the same attempt):
 
@@ -31,7 +31,16 @@ The server reads only the authenticated user's saved cart. Client-supplied produ
     "orderId": "507f1f77bcf86cd799439013",
     "reference": "wa_<unique-order-reference>",
     "items": [
-      { "product": "507f1f77bcf86cd799439012", "title": "Bag", "imageUrl": null, "quantity": 2, "unitAmount": 1250 }
+      {
+        "product": "507f1f77bcf86cd799439012",
+        "title": "Bag",
+        "imageUrl": "https://images.example/bag-red.jpg",
+        "variantId": "507f1f77bcf86cd799439101",
+        "colorName": "Red",
+        "variantImageUrl": "https://images.example/bag-red.jpg",
+        "quantity": 2,
+        "unitAmount": 1250
+      }
     ],
     "amount": 2500,
     "currency": "NGN",
@@ -43,7 +52,7 @@ The server reads only the authenticated user's saved cart. Client-supplied produ
 }
 ```
 
-The message uses the `🛍️ *SEKJAD ORDER REQUEST*` heading, numbered items, quantities, `Price` (the whole line's total), product links, image links, and a bold naira total. Order reference and customer contact details appear at the bottom. No message is sent by the backend: the customer opens WhatsApp and presses **Send**.
+The message uses the `🛍️ *SEKJAD ORDER REQUEST*` heading, numbered items, selected color when present, quantities, `Price` (the whole line's total), product links, selected image links, and a bold naira total. Order reference and customer contact details appear at the bottom. No message is sent by the backend: the customer opens WhatsApp and presses **Send**.
 
 Product links use `FRONTEND_ORIGIN` (falling back to `BASE_URL`) followed by `/product/<slug>`, or the product ID if no slug is present. Configure that origin to the publicly accessible storefront in production. Product and primary-image URLs are saved with each new order. Previous order snapshots without product URLs still work but do not gain product links retroactively. Missing images are omitted. Start a new checkout attempt to capture current product links/images.
 
@@ -53,6 +62,7 @@ Example item:
 🛍️ *SEKJAD ORDER REQUEST*
 
 1️⃣ Lace Fabric
+Color: Blue
 Quantity: 3
 Price: ₦45,000
 🔗 https://sekjad.com/product/lace-001
@@ -66,7 +76,7 @@ The WhatsApp click-to-chat URL prefills text and links, not photo attachments. I
 
 Opening WhatsApp does not prove a message was sent or payment received. The order remains `pending`, the cart stays intact, and stock is not reserved/decremented. Existing customer/admin order endpoints include the pending order with `paymentMethod: "whatsapp"`. Payment happens separately in the conversation; this change does not add automatic reconciliation or an admin payment-confirmation endpoint. Staff should use the saved order reference and server total when agreeing payment, because customers can edit the WhatsApp message.
 
-Retries with the same UUID return the same order snapshot, including after cart edits. Generate a new UUID after the customer changes/reviews the cart or explicitly starts a new order. Disable the button while the request is running. The unique reference also prevents concurrent retries from saving duplicates. The endpoint allows 10 attempts per 15 minutes per IP.
+Retries with the same UUID and the same cart product/variant/quantity lines return the same order snapshot. A changed cart (including a different color or quantity) produces a different reference; generate a new UUID after the customer changes/reviews the cart or explicitly starts a new order. Disable the button while the request is running. The unique reference also prevents concurrent retries from saving duplicates. The endpoint allows 10 attempts per 15 minutes per IP.
 
 ## Frontend integration
 

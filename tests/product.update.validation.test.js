@@ -67,6 +67,31 @@ test('passes an ordinary price update through the ID validator', async () => {
     assert.equal(response.body.body.price, 29.99);
 });
 
+test('accepts product variants on create and JSON-encoded variant edits', async () => {
+    const product = {
+        title: 'Lace Fabric', description: 'Fabric', price: 15000,
+        categories: ['507f1f77bcf86cd799439011'], image: { url: 'https://example.com/lace.jpg' },
+        variants: [{
+            colorName: 'Blue',
+            image: { url: 'https://example.com/lace-blue.jpg', altText: 'Blue lace' },
+        }],
+    };
+    const created = await request(app).post('/products').send(product);
+    assert.equal(created.status, 200);
+    assert.equal(created.body.variants[0].colorName, 'Blue');
+
+    const editedVariants = [{
+        variantId: '507f1f77bcf86cd799439012',
+        colorName: 'Navy',
+        image: { url: 'https://example.com/lace-navy.jpg' },
+        isAvailable: true,
+    }];
+    const updated = await request(app).patch('/products/507f1f77bcf86cd799439011')
+        .field('variants', JSON.stringify(editedVariants));
+    assert.equal(updated.status, 200);
+    assert.deepEqual(updated.body.body.variants, editedVariants);
+});
+
 test('product creation accepts no stock and strips legacy stock input', async () => {
     const product = {
         title: 'Lace Fabric', description: 'Fabric', price: 15000,
@@ -81,6 +106,12 @@ test('product creation accepts no stock and strips legacy stock input', async ()
     await document.validate();
     assert.equal(document.stock, undefined);
     assert.equal(document.toJSON().inStock, true);
+    const variantProduct = new Product({
+        ...product,
+        variants: [{ colorName: 'Blue', image: { url: 'https://example.com/lace-blue.jpg' } }],
+    });
+    await variantProduct.validate();
+    assert.ok(variantProduct.variants[0].variantId);
 });
 
 test('product updates ignore stock and existing zero stock does not mean unavailable', async () => {

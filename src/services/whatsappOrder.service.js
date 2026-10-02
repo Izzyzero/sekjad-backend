@@ -1,7 +1,7 @@
 const { createHash } = require('node:crypto');
 const Cart = require('../models/Cart');
 const Order = require('../models/Order');
-const { MAX_CART_QUANTITY } = require('../utils/inputLimits');
+const { buildCheckoutItems, getCartSignature } = require('./checkoutItems.service');
 const env = require('../config/env');
 
 const fail = (statusCode, message) => Object.assign(new Error(message), { statusCode });
@@ -31,10 +31,11 @@ const handoff = (order, user, number) => {
         '',
         ...order.items.flatMap((item, index) => [
             `${numberLabel(index + 1)} ${singleLine(item.title)}`,
+            ...(item.colorName ? [`Color: ${singleLine(item.colorName)}`] : []),
             `Quantity: ${item.quantity}`,
             `Price: ${money(item.unitAmount * item.quantity, order.currency)}`,
             ...(webUrl(item.productUrl) ? [`🔗 ${webUrl(item.productUrl)}`] : []),
-            ...(webUrl(item.imageUrl) ? [`🖼️ ${webUrl(item.imageUrl)}`] : []),
+            ...(webUrl(item.variantImageUrl || item.imageUrl) ? [`🖼️ ${webUrl(item.variantImageUrl || item.imageUrl)}`] : []),
             '',
         ]),
         `💰 *Total: ${money(order.amount, order.currency)}*`,
@@ -58,34 +59,23 @@ const create = async (user, idempotencyKey) => {
     if (!/^[1-9]\d{7,14}$/.test(number)) {
         throw fail(503, 'WhatsApp ordering is not configured. Please contact the store');
     }
-    // Scoped to the authenticated account; retries reuse the saved order snapshot.
-    const reference = `wa_${createHash('sha256').update(`${user._id}:${idempotencyKey}`).digest('hex')}`;
+    const cart = await Cart.findOne({ user: user._id }).populate('items.product');
+    if (!cart?.items.length) throw fail(400, 'Cart is empty');
+    const cartSignature = getCartSignature(cart.items);
+    // The same key only reuses an order when the cart's product/variant quantities match.
+    const reference = `wa_${createHash('sha256')
+        .update(`${user._id}:${idempotencyKey}:${cartSignature}`).digest('hex')}`;
     const existing = await Order.findOne({ user: user._id, reference });
     if (existing) return { created: false, data: handoff(existing, user, number) };
 
-    const cart = await Cart.findOne({ user: user._id }).populate('items.product');
-    if (!cart?.items.length) throw fail(400, 'Cart is empty');
-    const items = cart.items.map(({ product, quantity }) => {
-        if (!product) {
-            throw fail(400, 'A product in your cart no longer exists. Please remove it and try again');
-        }
-        if (product.status !== 'active') throw fail(400, 'A product in your cart is no longer available');
-        if (!Number.isSafeInteger(quantity) || quantity < 1 || quantity > MAX_CART_QUANTITY) {
-            throw fail(400, 'Cart contains an invalid quantity');
-        }
-        if (product.currency !== 'NGN') throw fail(400, 'Only NGN products are supported');
-        const unitAmount = Math.round(product.price * 100);
-        if (!Number.isSafeInteger(unitAmount) || unitAmount < 1 || Math.abs(unitAmount / 100 - product.price) > 0.000001) {
-            throw fail(400, 'Product price must have at most two decimal places and be greater than zero');
-        }
-        return {
-            product: product._id, title: product.title,
-            imageUrl: webUrl(product.image?.url), productUrl: productLink(product),
-            quantity, unitAmount,
-        };
-    });
-    const amount = items.reduce((sum, item) => sum + item.unitAmount * item.quantity, 0);
-    if (!Number.isSafeInteger(amount) || amount < 1) throw fail(400, 'Invalid order amount');
+    const checkout = buildCheckoutItems(cart);
+    const items = checkout.items.map((item, index) => ({
+        ...item,
+        imageUrl: webUrl(item.imageUrl),
+        variantImageUrl: webUrl(item.variantImageUrl),
+        productUrl: productLink(cart.items[index].product),
+    }));
+    const { amount } = checkout;
     try {
         const order = await Order.create({
             user: user._id, items, amount, currency: 'NGN', reference,

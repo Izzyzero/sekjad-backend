@@ -10,7 +10,7 @@ const {
 const app = express();
 app.use(express.json());
 app.post('/cart/items', validateAddCartItem, (req, res) => res.status(200).json(req.body));
-app.patch('/cart/items/:productId', validateUpdateCartItem, (req, res) => res.status(200).json(req.body));
+app.patch('/cart/items/:cartItemId', validateUpdateCartItem, (req, res) => res.status(200).json(req.body));
 
 test('accepts a product with the default cart quantity', async () => {
     const response = await request(app)

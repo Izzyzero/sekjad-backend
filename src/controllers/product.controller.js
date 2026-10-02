@@ -88,10 +88,11 @@ const createPreviewHandler = (query) => async (_req, res, next) => {
     try {
         // Do not accept client filters/pagination that could expose the full catalog.
         const { products } = await productService.getAllProducts(query);
-        const data = products.map(({ _id, title, slug, price, compareAtPrice, currency, image, isFeatured }) => ({
+        const data = products.map(({ _id, title, slug, price, compareAtPrice, currency, image, isFeatured, tags }) => ({
             _id, title, slug, price, compareAtPrice, currency,
             image: image ? { url: image.url, altText: image.altText } : undefined,
             isFeatured,
+            tags: tags ?? [],
         }));
         return res.status(200).json({ success: true, message: 'Product preview retrieved successfully', data });
     } catch (error) {

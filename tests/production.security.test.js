@@ -28,8 +28,24 @@ test('production login issues a Secure, HttpOnly refresh cookie', async (t) => {
 for (const status of ['draft', 'archived']) {
     test(`cart refuses ${status} products before modifying the cart`, async (t) => {
         t.mock.method(Product, 'findById', async () => ({ status }));
-        t.mock.method(Cart, 'findOne', () => assert.fail('Cart must not be modified'));
-        await assert.rejects(cartService.addItem('user', '507f1f77bcf86cd799439011', 1), { statusCode: 404 });
-        await assert.rejects(cartService.updateItemQuantity('user', '507f1f77bcf86cd799439011', 1), { statusCode: 404 });
+        let saves = 0;
+        const cart = {
+            items: [{
+                cartItemId: '507f1f77bcf86cd799439012',
+                product: '507f1f77bcf86cd799439011',
+                quantity: 1,
+            }],
+            async save() { saves++; },
+        };
+        t.mock.method(Cart, 'findOne', async () => cart);
+        await assert.rejects(
+            cartService.addItem('user', '507f1f77bcf86cd799439011', undefined, 1),
+            { statusCode: 404 }
+        );
+        await assert.rejects(
+            cartService.updateItemQuantity('user', '507f1f77bcf86cd799439012', 1),
+            { statusCode: 404 }
+        );
+        assert.equal(saves, 0);
     });
 }

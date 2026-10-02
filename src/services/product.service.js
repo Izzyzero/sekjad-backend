@@ -24,6 +24,46 @@ const ensureValidProductId = (id) => {
     }
 };
 
+const normalizeVariants = (variants, currentVariants = []) => {
+    if (!Array.isArray(variants)) {
+        const error = new Error('Variants must be an array');
+        error.statusCode = 400;
+        throw error;
+    }
+    const currentIds = new Set(currentVariants.map((variant) => String(variant.variantId)));
+    const seenIds = new Set();
+    return variants.map((variant) => {
+        if (!variant || typeof variant !== 'object' || Array.isArray(variant)) {
+            const error = new Error('Every variant must be an object');
+            error.statusCode = 400;
+            throw error;
+        }
+        let variantId = variant.variantId;
+        if (variantId !== undefined) {
+            if (!mongoose.isObjectIdOrHexString(variantId)) {
+                const error = new Error('Invalid variant ID');
+                error.statusCode = 400;
+                throw error;
+            }
+            variantId = String(variantId);
+            if (!currentIds.has(variantId)) {
+                const error = new Error('Variant ID does not belong to this product');
+                error.statusCode = 400;
+                throw error;
+            }
+            if (seenIds.has(variantId)) {
+                const error = new Error('Variant IDs must be unique');
+                error.statusCode = 400;
+                throw error;
+            }
+            seenIds.add(variantId);
+        } else {
+            variantId = new mongoose.Types.ObjectId();
+        }
+        return { ...variant, variantId };
+    });
+};
+
 const validateCategories = async (categories) => {
     if (!Array.isArray(categories) || categories.length === 0) {
         const error = new Error('At least one category is required');
@@ -53,6 +93,7 @@ const validateCategories = async (categories) => {
 const createProduct = async (productData, adminId) => {
     const { stock, ...details } = productData;
     const categories = await validateCategories(productData.categories);
+    if (details.variants !== undefined) details.variants = normalizeVariants(details.variants);
     const product = await Product.create({
         ...details,
         categories,
@@ -98,6 +139,7 @@ const updateProduct = async (productId, changes, imageBuffer, galleryBuffers = [
         'categories',
         'image',
         'gallery',
+        'variants',
         'sku',
         'brand',
         'tags',
@@ -107,6 +149,9 @@ const updateProduct = async (productId, changes, imageBuffer, galleryBuffers = [
 
     if (changes.categories !== undefined) {
         changes.categories = await validateCategories(changes.categories);
+    }
+    if (changes.variants !== undefined) {
+        changes.variants = normalizeVariants(changes.variants, product.variants || []);
     }
 
     let uploadedImage;
@@ -209,6 +254,7 @@ const deleteProduct = async (productId) => {
     const publicIds = [
         product.image?.publicId,
         ...(product.gallery || []).map((image) => image.publicId),
+        ...(product.variants || []).map((variant) => variant.image?.publicId),
     ].filter(Boolean);
 
     // Remove Cloudinary assets before deleting the database record so a

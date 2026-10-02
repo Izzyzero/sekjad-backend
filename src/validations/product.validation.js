@@ -38,6 +38,32 @@ const productFields = [
     body('gallery.*.publicId').optional({ nullable: true }).isString().withMessage('Gallery publicId must be a string').trim(),
     body('gallery.*.altText').optional().isString().withMessage('Gallery alt text must be a string').trim()
         .isLength({ max: 150 }).withMessage('Gallery alt text cannot exceed 150 characters'),
+    body('variants').optional().customSanitizer((value) => {
+        if (typeof value !== 'string') return value;
+        try { return JSON.parse(value); } catch { return value; }
+    }).isArray().withMessage('Variants must be an array'),
+    body('variants').optional().custom((variants) => {
+        if (!Array.isArray(variants)) return true;
+        const ids = variants.map((variant) => variant?.variantId).filter(Boolean);
+        if (new Set(ids).size !== ids.length) throw new Error('Variant IDs must be unique');
+        return true;
+    }),
+    body('variants.*').isObject().withMessage('Every variant must be an object'),
+    body('variants.*.variantId').optional().isMongoId().withMessage('Variant ID must be a valid MongoDB ID'),
+    body('variants.*.colorName').exists({ values: 'falsy' }).withMessage('Variant color name is required')
+        .isString().withMessage('Variant color name must be a string').trim()
+        .isLength({ min: 1, max: 80 }).withMessage('Variant color name cannot exceed 80 characters'),
+    body('variants.*.image').exists().withMessage('Variant image is required')
+        .isObject().withMessage('Variant image must be an object'),
+    body('variants.*.image.url').exists({ values: 'falsy' }).withMessage('Variant image URL is required')
+        .isURL({ protocols: ['http', 'https'], require_protocol: true })
+        .withMessage('Variant image URL must be a valid HTTP or HTTPS URL'),
+    body('variants.*.image.publicId').optional({ nullable: true }).isString()
+        .withMessage('Variant image publicId must be a string').trim(),
+    body('variants.*.image.altText').optional().isString().withMessage('Variant image alt text must be a string')
+        .trim().isLength({ max: 150 }).withMessage('Variant image alt text cannot exceed 150 characters'),
+    body('variants.*.isAvailable').optional().isBoolean()
+        .withMessage('Variant isAvailable must be true or false').toBoolean(),
     body('sku').optional().isString().withMessage('SKU must be a string').trim().notEmpty().withMessage('SKU cannot be empty').toUpperCase(),
     body('brand').optional().isString().withMessage('Brand must be a string').trim()
         .isLength({ max: 100 }).withMessage('Brand cannot exceed 100 characters'),
@@ -73,7 +99,7 @@ const validateCreateProductUpload = [
 const validateUpdateProduct = [
     body().custom((value, { req }) => {
         const allowed = ['title', 'description', 'price', 'compareAtPrice', 'currency', 'categories', 'image',
-            'gallery', 'sku', 'brand', 'tags', 'status', 'isFeatured', 'replaceGallery',
+            'gallery', 'variants', 'sku', 'brand', 'tags', 'status', 'isFeatured', 'replaceGallery',
             'removeGalleryPublicIds'];
         const hasFiles = Boolean(req.files?.image?.length || req.files?.gallery?.length);
         if (!hasFiles && (!value || !allowed.some((field) => value[field] !== undefined))) {

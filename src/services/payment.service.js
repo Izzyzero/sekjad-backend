@@ -3,7 +3,7 @@ const Cart = require('../models/Cart');
 const Order = require('../models/Order');
 const paystack = require('../config/paystack');
 const env = require('../config/env');
-const { MAX_CART_QUANTITY } = require('../utils/inputLimits');
+const { buildCheckoutItems } = require('./checkoutItems.service');
 
 const badRequest = (message) => {
     const error = new Error(message);
@@ -21,24 +21,7 @@ const initialize = async (user) => {
     }
     const cart = await Cart.findOne({ user: user._id }).populate('items.product');
     if (!cart?.items.length) throw badRequest('Cart is empty');
-
-    const items = cart.items.map(({ product, quantity }) => {
-        if (!product) {
-            throw badRequest('A product in your cart no longer exists. Please remove it and try again');
-        }
-        if (product.status !== 'active') throw badRequest('A product in your cart is no longer available');
-        if (!Number.isSafeInteger(quantity) || quantity < 1 || quantity > MAX_CART_QUANTITY) {
-            throw badRequest('Cart contains an invalid quantity');
-        }
-        if (product.currency !== 'NGN') throw badRequest('Only NGN products are supported');
-        const unitAmount = Math.round(product.price * 100);
-        if (!Number.isSafeInteger(unitAmount) || unitAmount < 1 || Math.abs(unitAmount / 100 - product.price) > 0.000001) {
-            throw badRequest('Product price must have at most two decimal places and be greater than zero');
-        }
-        return { product: product._id, title: product.title, imageUrl: product.image?.url || null, quantity, unitAmount };
-    });
-    const amount = items.reduce((sum, item) => sum + item.unitAmount * item.quantity, 0);
-    if (!Number.isSafeInteger(amount) || amount < 1) throw badRequest('Invalid order amount');
+    const { items, amount } = buildCheckoutItems(cart);
 
     const order = await Order.create({
         user: user._id,
