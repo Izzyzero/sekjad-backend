@@ -31,7 +31,9 @@ const handoff = (order, user, number) => {
         '',
         ...order.items.flatMap((item, index) => [
             `${numberLabel(index + 1)} ${singleLine(item.title)}`,
-            ...(item.colorName ? [`Color: ${singleLine(item.colorName)}`] : []),
+            item.colorName
+                ? `Color: ${singleLine(item.colorName)}`
+                : 'Selection: Main product',
             `Quantity: ${item.quantity}`,
             `Price: ${money(item.unitAmount * item.quantity, order.currency)}`,
             ...(webUrl(item.productUrl) ? [`🔗 ${webUrl(item.productUrl)}`] : []),

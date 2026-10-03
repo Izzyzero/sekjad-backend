@@ -13,16 +13,9 @@ const buildCheckoutItems = (cart, { currency = 'NGN' } = {}) => {
         }
         if (product.currency !== currency) throw fail(`Only ${currency} products are supported`);
 
-        const hasVariants = Array.isArray(product.variants) && product.variants.length > 0;
         let variant = null;
-        if (hasVariants && !variantId) {
-            throw fail(`Choose a color for ${product.title} before checkout`);
-        }
-        if (!hasVariants && variantId) {
-            throw fail(`The selected color for ${product.title} is no longer available`);
-        }
         if (variantId) {
-            variant = product.variants.find((entry) => String(entry.variantId) === String(variantId));
+            variant = (product.variants || []).find((entry) => String(entry.variantId) === String(variantId));
             if (!variant || !variant.isAvailable) {
                 throw fail(`The selected color for ${product.title} is no longer available`);
             }

@@ -13,6 +13,7 @@ const productWithoutVariantsId = '507f1f77bcf86cd799439002';
 const redVariantId = '507f1f77bcf86cd799439101';
 const blueVariantId = '507f1f77bcf86cd799439102';
 const otherProductVariantId = '507f1f77bcf86cd799439103';
+const goldVariantId = '507f1f77bcf86cd799439104';
 const productImage = { url: 'https://images.example/product.jpg', altText: 'Bag' };
 const makeProducts = () => new Map([
     [productId, {
@@ -21,6 +22,7 @@ const makeProducts = () => new Map([
         variants: [
             { variantId: redVariantId, colorName: 'Red', image: { url: 'https://images.example/red.jpg' }, isAvailable: true },
             { variantId: blueVariantId, colorName: 'Blue', image: { url: 'https://images.example/blue.jpg' }, isAvailable: true },
+            { variantId: goldVariantId, colorName: 'Gold', image: { url: 'https://images.example/gold.jpg' }, isAvailable: true },
         ],
     }],
     [productWithoutVariantsId, {
@@ -74,6 +76,33 @@ test('cart keeps two colors as separate lines and merges repeat additions by var
     assert.equal(result.subtotal, 7500);
 });
 
+test('main product is optional alongside variants and repeated main adds merge only with the main line', async (t) => {
+    const products = makeProducts();
+    mockCartStore(t, products);
+    t.mock.method(Product, 'findById', async (id) => products.get(String(id)) || null);
+
+    let result = await cartService.addItem('507f1f77bcf86cd799439099', productId, undefined, 1);
+    const mainItem = result.items[0];
+    assert.equal(mainItem.variantId, null);
+    assert.equal(mainItem.colorName, null);
+    assert.deepEqual(mainItem.selectedImage, productImage);
+    assert.equal(mainItem.price, 1250);
+
+    result = await cartService.addItem('507f1f77bcf86cd799439099', productId, blueVariantId, 2);
+    const blueItem = result.items.find((item) => item.variantId === blueVariantId);
+    result = await cartService.addItem('507f1f77bcf86cd799439099', productId, goldVariantId, 1);
+    const goldItem = result.items.find((item) => item.variantId === goldVariantId);
+    result = await cartService.addItem('507f1f77bcf86cd799439099', productId, undefined, 3);
+
+    assert.equal(result.items.length, 3);
+    assert.equal(result.items.find((item) => item.variantId === null).cartItemId, mainItem.cartItemId);
+    assert.equal(result.items.find((item) => item.variantId === null).quantity, 4);
+    assert.equal(result.items.find((item) => item.variantId === blueVariantId).cartItemId, blueItem.cartItemId);
+    assert.equal(result.items.find((item) => item.variantId === blueVariantId).quantity, 2);
+    assert.equal(result.items.find((item) => item.variantId === goldVariantId).cartItemId, goldItem.cartItemId);
+    assert.equal(result.items.find((item) => item.variantId === goldVariantId).quantity, 1);
+});
+
 test('updating and removing one cart line leaves the other color untouched', async (t) => {
     const products = makeProducts();
     mockCartStore(t, products);
@@ -91,14 +120,15 @@ test('updating and removing one cart line leaves the other color untouched', asy
     assert.equal(result.items[0].quantity, 2);
 });
 
-test('cart rejects missing, unrelated, and unavailable variants', async (t) => {
+test('cart rejects unrelated and unavailable variants but accepts a main product selection', async (t) => {
     const products = makeProducts();
     products.get(productId).variants[1].isAvailable = false;
     mockCartStore(t, products);
     t.mock.method(Product, 'findById', async (id) => products.get(String(id)) || null);
     const add = (variantId) => cartService.addItem('507f1f77bcf86cd799439099', productId, variantId, 1);
 
-    await assert.rejects(add(undefined), /variant selection is required/);
+    const mainProduct = await add(undefined);
+    assert.equal(mainProduct.items[0].variantId, null);
     await assert.rejects(add(otherProductVariantId), /does not belong to this product/);
     await assert.rejects(add(blueVariantId), /not available/);
 });
@@ -130,14 +160,15 @@ test('legacy cart lines get a persisted identity without an inferred color', asy
     assert.equal(secondRead.items[0].cartItemId, firstRead.items[0].cartItemId);
     assert.equal(firstRead.items[0].variantId, null);
     assert.equal(firstRead.items[0].colorName, null);
-    assert.equal(firstRead.items[0].selectedImage, null);
+    assert.deepEqual(firstRead.items[0].selectedImage, productImage);
     assert.equal(cartDocument.saveCount, 1);
 });
 
-test('checkout snapshots selected colors and WhatsApp message includes color and quantity', async (t) => {
+test('checkout snapshots main and color selections and WhatsApp message labels each selection', async (t) => {
     const products = makeProducts();
     const checkoutCart = {
         items: [
+            { product: products.get(productId), variantId: null, quantity: 3 },
             { product: products.get(productId), variantId: redVariantId, quantity: 2 },
             { product: products.get(productId), variantId: blueVariantId, quantity: 1 },
         ],
@@ -152,31 +183,44 @@ test('checkout snapshots selected colors and WhatsApp message includes color and
     });
 
     const built = buildCheckoutItems(checkoutCart);
-    assert.equal(built.amount, 375000);
-    assert.deepEqual(built.items.map(({ variantId, colorName, variantImageUrl, unitAmount }) => ({
-        variantId, colorName, variantImageUrl, unitAmount,
+    assert.equal(built.amount, 750000);
+    assert.deepEqual(built.items.map(({ variantId, colorName, imageUrl, variantImageUrl, unitAmount }) => ({
+        variantId, colorName, imageUrl, variantImageUrl, unitAmount,
     })), [
-        { variantId: redVariantId, colorName: 'Red', variantImageUrl: 'https://images.example/red.jpg', unitAmount: 125000 },
-        { variantId: blueVariantId, colorName: 'Blue', variantImageUrl: 'https://images.example/blue.jpg', unitAmount: 125000 },
+        { variantId: null, colorName: null, imageUrl: productImage.url, variantImageUrl: null, unitAmount: 125000 },
+        { variantId: redVariantId, colorName: 'Red', imageUrl: 'https://images.example/red.jpg', variantImageUrl: 'https://images.example/red.jpg', unitAmount: 125000 },
+        { variantId: blueVariantId, colorName: 'Blue', imageUrl: 'https://images.example/blue.jpg', variantImageUrl: 'https://images.example/blue.jpg', unitAmount: 125000 },
     ]);
 
     const user = {
         _id: '507f1f77bcf86cd799439099', firstName: 'Test', lastName: 'Buyer', phoneNumber: '08000000000',
     };
     const result = await whatsappOrderService.create(user, 'd9428888-122b-4bc9-97a8-784fe6f5f21c');
-    assert.equal(result.data.items[0].variantId, redVariantId);
-    assert.equal(result.data.items[0].colorName, 'Red');
+    assert.equal(result.data.items[0].variantId, null);
+    assert.equal(result.data.items[0].colorName, null);
+    assert.equal(result.data.items[0].imageUrl, productImage.url);
+    assert.match(result.data.message, /Selection: Main product\nQuantity: 3/);
     assert.match(result.data.message, /Color: Red\nQuantity: 2/);
     assert.match(result.data.message, /Color: Blue\nQuantity: 1/);
+    assert.match(result.data.message, /https:\/\/images\.example\/product\.jpg/);
     assert.match(result.data.message, /https:\/\/images\.example\/red\.jpg/);
+    assert.equal(orders.values().next().value.items[0].variantId, null);
+    assert.equal(orders.values().next().value.items[0].colorName, null);
+    assert.equal(orders.values().next().value.items[0].imageUrl, productImage.url);
 
-    checkoutCart.items[0].variantId = blueVariantId;
+    checkoutCart.items[0].quantity = 4;
     const changedCartResult = await whatsappOrderService.create(user, 'd9428888-122b-4bc9-97a8-784fe6f5f21c');
     assert.equal(changedCartResult.created, true);
     assert.notEqual(changedCartResult.data.reference, result.data.reference);
 });
 
-test('checkout rejects legacy cart lines when a product now requires a color', async () => {
-    const cart = { items: [{ product: makeProducts().get(productId), quantity: 1 }] };
-    assert.throws(() => buildCheckoutItems(cart), /Choose a color/);
+test('checkout rejects invalid or unavailable selected colors', async () => {
+    const product = makeProducts().get(productId);
+    assert.throws(() => buildCheckoutItems({
+        items: [{ product, variantId: otherProductVariantId, quantity: 1 }],
+    }), /selected color .* no longer available/);
+    product.variants[0].isAvailable = false;
+    assert.throws(() => buildCheckoutItems({
+        items: [{ product, variantId: redVariantId, quantity: 1 }],
+    }), /selected color .* no longer available/);
 });

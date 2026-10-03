@@ -90,15 +90,63 @@ const validateCategories = async (categories) => {
     return categoryIds;
 };
 
-const createProduct = async (productData, adminId) => {
+const createProduct = async (productData, adminId, imageBuffer, galleryBuffers = []) => {
     const { stock, ...details } = productData;
     const categories = await validateCategories(productData.categories);
     if (details.variants !== undefined) details.variants = normalizeVariants(details.variants);
-    const product = await Product.create({
-        ...details,
-        categories,
-        createdBy: adminId,
-    });
+    let uploadedImages = [];
+
+    if (imageBuffer || galleryBuffers.length) {
+        const uploadResults = await Promise.allSettled([
+            ...(imageBuffer ? [uploadBuffer(imageBuffer)] : []),
+            ...galleryBuffers.map((buffer) => uploadBuffer(buffer)),
+        ]);
+        uploadedImages = uploadResults
+            .filter(({ status }) => status === 'fulfilled')
+            .map(({ value }) => value);
+        const failedUpload = uploadResults.find(({ status }) => status === 'rejected');
+
+        if (failedUpload) {
+            await Promise.allSettled(
+                uploadedImages.map(({ public_id: publicId }) => deleteProductImage(publicId))
+            );
+            throw failedUpload.reason;
+        }
+
+        let uploadedGallery;
+        if (imageBuffer) {
+            const [mainImage, ...galleryImages] = uploadedImages;
+            details.image = {
+                url: mainImage.secure_url,
+                publicId: mainImage.public_id,
+                altText: details.image?.altText ?? details.title,
+            };
+            uploadedGallery = galleryImages;
+        } else {
+            uploadedGallery = uploadedImages;
+        }
+        if (uploadedGallery.length) {
+            details.gallery = uploadedGallery.map((image, index) => ({
+                url: image.secure_url,
+                publicId: image.public_id,
+                altText: `${details.title || 'Product'} image ${index + 1}`,
+            }));
+        }
+    }
+
+    let product;
+    try {
+        product = await Product.create({
+            ...details,
+            categories,
+            createdBy: adminId,
+        });
+    } catch (error) {
+        await Promise.allSettled(
+            uploadedImages.map(({ public_id: publicId }) => deleteProductImage(publicId))
+        );
+        throw error;
+    }
     return product.populate('categories', 'name slug');
 };
 

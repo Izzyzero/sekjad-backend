@@ -78,8 +78,16 @@ const validateCreateProduct = [
     body('description').exists({ values: 'falsy' }).withMessage('Product description is required'),
     body('price').exists({ values: 'null' }).withMessage('Product price is required'),
     body('categories').exists().withMessage('Product categories are required'),
-    body('image').exists().withMessage('Product image is required'),
-    body('image.url').exists({ values: 'falsy' }).withMessage('Product image URL is required'),
+    body('image').custom((value, { req }) => {
+        if (req.files?.image?.length) return true;
+        if (!value) throw new Error('Product image is required');
+        return true;
+    }),
+    body('image.url').custom((value, { req }) => {
+        if (req.files?.image?.length) return true;
+        if (!value) throw new Error('Product image URL is required');
+        return true;
+    }),
     ...productFields,
     handleValidation,
 ];

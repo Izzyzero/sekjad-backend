@@ -11,7 +11,12 @@ const handleProductError = (error) => {
 
 const createProduct = async (req, res, next) => {
     try {
-        const product = await productService.createProduct(req.body, req.user._id);
+        const product = await productService.createProduct(
+            req.body,
+            req.user._id,
+            req.files?.image?.[0]?.buffer,
+            (req.files?.gallery || []).map((file) => file.buffer)
+        );
 
         return res.status(201).json({
             success: true,

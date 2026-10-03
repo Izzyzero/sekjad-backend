@@ -19,9 +19,6 @@ const getProduct = async (productId) => {
 
 const validateVariant = (product, variantId) => {
     const variants = product.variants || [];
-    if (variants.length && !variantId) {
-        throw fail(400, 'A variant selection is required for this product');
-    }
     if (!variants.length && variantId) {
         throw fail(400, 'This product does not have color variants');
     }
@@ -46,10 +43,7 @@ const formatCart = (cart) => {
         const variant = variantId
             ? (product.variants || []).find((entry) => idOf(entry.variantId) === variantId)
             : null;
-        const hasVariants = (product.variants || []).length > 0;
-        const selectedImage = variant
-            ? variant.image
-            : (!variantId && !hasVariants ? product.image : null);
+        const selectedImage = variant?.image || product.image;
         return {
             ...item,
             cartItemId: item.cartItemId ? String(item.cartItemId) : null,

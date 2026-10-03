@@ -5,6 +5,7 @@ const requireAdmin = require('../middleware/admin.middleware');
 const { protectUpload } = require('../middleware/uploadLimits.middleware');
 const { upload } = require('../utils/cloudinaryUpload');
 const { handleUploadError } = require('../middleware/upload.middleware');
+const parseProductMultipart = require('../middleware/productMultipart.middleware');
 const {
     validateCreateProduct,
     validateUpdateProduct,
@@ -19,7 +20,20 @@ router.get('/preview/latest', productController.getLatestPreview);
 router.get('/', authenticate, productController.getAllProducts);
 router.get('/:id', authenticate, validateProductId, productController.getProductById);
 
-router.post('/', authenticate, requireAdmin, validateCreateProduct, productController.createProduct);
+router.post(
+    '/',
+    authenticate,
+    requireAdmin,
+    protectUpload,
+    upload.fields([
+        { name: 'image', maxCount: 1 },
+        { name: 'gallery', maxCount: 10 },
+    ]),
+    handleUploadError,
+    parseProductMultipart,
+    validateCreateProduct,
+    productController.createProduct
+);
 router.patch(
     '/:id',
     authenticate,
@@ -31,6 +45,7 @@ router.patch(
         { name: 'gallery', maxCount: 10 },
     ]),
     handleUploadError,
+    parseProductMultipart,
     validateUpdateProduct,
     productController.updateProduct
 );

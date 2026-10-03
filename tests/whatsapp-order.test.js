@@ -75,8 +75,8 @@ test('message matches the branded format with product and image links and line t
     state.cart.items.push({ product: { ...product, _id: '507f1f77bcf86cd799439014', title: 'Aso Oke', slug: 'aso-014', image: { url: 'https://images.example.com/aso.jpg' } }, quantity: 2 });
     const result = await service.create(user, randomUUID());
     assert.ok(result.data.message.startsWith('🛍️ *SEKJAD ORDER REQUEST*\n'));
-    assert.ok(result.data.message.includes('1️⃣ Lace Fabric\nQuantity: 3\nPrice: ₦45,000\n🔗 https://sekjad.com/product/lace-001\n🖼️ https://images.example.com/lace.jpg'));
-    assert.ok(result.data.message.includes('2️⃣ Aso Oke\nQuantity: 2\nPrice: ₦30,000'));
+    assert.ok(result.data.message.includes('1️⃣ Lace Fabric\nSelection: Main product\nQuantity: 3\nPrice: ₦45,000\n🔗 https://sekjad.com/product/lace-001\n🖼️ https://images.example.com/lace.jpg'));
+    assert.ok(result.data.message.includes('2️⃣ Aso Oke\nSelection: Main product\nQuantity: 2\nPrice: ₦30,000'));
     assert.ok(result.data.message.includes('💰 *Total: ₦75,000*\nPlease confirm my order.'));
     assert.equal(state.orders[0].items[0].productUrl, 'https://sekjad.com/product/lace-001');
     assert.equal(new URL(result.data.whatsappUrl).searchParams.get('text'), result.data.message);

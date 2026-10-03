@@ -6,7 +6,9 @@ All product and cart prices come from the product record and are calculated by t
 
 ## Admin: create or edit variants
 
-Create a product with `POST /api/v1/products` (admin authentication required) by adding `variants` to the normal product JSON. Omit `variantId` for new variants; the server assigns it:
+Product create and edit endpoints accept JSON or `multipart/form-data` (admin authentication required). For multipart requests, send scalar fields such as `title`, `description`, `price`, `brand`, and `currency` as normal form fields; repeat `categories[]` once per category ID and `tags[]` once per tag. Attach the primary file as `image` and optional files as repeated `gallery` fields (maximum 10). Send `variants` as a JSON-encoded array string. Creation requires `title`, `description`, `price`, at least one category, and either an `image` file or an `image.url` in a JSON request. An edit can omit `image` to keep the current product image. Uploaded images are stored by the backend and returned as `{ "url", "publicId", "altText" }`.
+
+Create a product with `POST /api/v1/products` by adding `variants` to the product request. Omit `variantId` for new variants; the server assigns it:
 
 ```http
 POST /api/v1/products
@@ -119,7 +121,7 @@ For example, the update response includes the saved variant IDs:
 }
 ```
 
-Render color choices from `variants`, and submit the selected `variantId`. Do not infer colors from `gallery`.
+Render color choices from `variants`, and submit the selected `variantId` only when the customer picks a color. Do not infer colors from `gallery`.
 
 ## Cart
 
@@ -127,7 +129,13 @@ All cart endpoints require customer authentication.
 
 ### Add a line: `POST /api/v1/cart/items`
 
-For a product with variants, `variantId` is required. For a product without variants, omit it. `quantity` is optional and defaults to `1`.
+`variantId` is optional for every product. Omit it to add the main product using its primary image and price; provide it to add a selected color. `quantity` is optional and defaults to `1`.
+
+```json
+{ "productId": "507f1f77bcf86cd799439012", "quantity": 1 }
+```
+
+To add a selected color:
 
 ```json
 { "productId": "507f1f77bcf86cd799439012", "variantId": "507f1f77bcf86cd799439101", "quantity": 2 }
@@ -159,7 +167,7 @@ Successful response:
 }
 ```
 
-Repeated adds merge only when both `productId` and `variantId` match. A different color gets another line and another `cartItemId`. Products without variants have `variantId` and `colorName` set to `null` in responses and use the primary product image for `selectedImage`.
+Repeated adds merge only when both `productId` and `variantId` match. The main product (`variantId: null`), Blue, and Gold therefore occupy separate lines and each has its own `cartItemId`. The main product has `colorName: null` and uses the primary product image; selected colors use their variant image. All lines use the product's server-side price. A supplied variant must belong to that product and be available.
 
 ### Read: `GET /api/v1/cart`
 
@@ -200,13 +208,13 @@ For both update and remove, the response is the same `{ "success": true, "messag
 
 `DELETE /api/v1/cart/items/:cartItemId` has message `"Product removed from cart"` and returns the same updated-cart data shape. Update and remove target only the supplied cart line. `DELETE /api/v1/cart` continues to clear the complete cart.
 
-The server rejects a missing selection for a product with variants, a variant from another product, or an unavailable variant with `400`. It rejects unknown cart item IDs with `404`. Existing cart lines have no inferred color; if a product subsequently gains variants, the old line remains unselected and checkout asks the customer to select a color. The frontend can remove that old line and add the chosen variant.
+The server rejects a variant from another product or an unavailable variant with `400`. Omitting `variantId` selects the main product, including for products that have variants. It rejects unknown cart item IDs with `404`. Existing cart lines with no variant remain main-product lines; no color is inferred from the product's variants.
 
 ## Checkout and orders
 
 WhatsApp checkout remains `POST /api/v1/orders/whatsapp`, with a UUID `Idempotency-Key` header and an empty JSON body. Paystack initialization, when enabled, remains `POST /api/v1/payments/initialize`; it uses the same server-side variant validation and item snapshots.
 
-The WhatsApp response's order lines now include variant snapshots:
+The WhatsApp response's order lines include variant snapshots. The main product is snapshotted with `variantId: null`, `colorName: null`, `imageUrl` set to the main image, and `variantImageUrl: null`. A selected color records its variant ID/name and uses the variant image:
 
 ```json
 {
@@ -238,7 +246,7 @@ The WhatsApp response's order lines now include variant snapshots:
 }
 ```
 
-The WhatsApp message includes `Color: <colorName>` when selected and uses the selected variant image link. The order items saved by the server snapshot `variantId`, `colorName`, `variantImageUrl`, image URL, quantity, and server-calculated unit price. Products without variants have null variant snapshot fields.
+The WhatsApp message includes `Color: <colorName>` for a selected color, and `Selection: Main product` when no variant was selected. It uses the corresponding main or variant image link. Order items snapshot the nullable `variantId`, nullable `colorName`, `variantImageUrl`, image URL, quantity, and server-calculated unit price, preserving the distinction for customer and admin order reads.
 
 Customer order endpoints (`GET /api/v1/orders`, `GET /api/v1/orders/:id`) and admin order endpoints (`GET /api/v1/admin/orders`, `GET /api/v1/admin/orders/:id`) return the saved item snapshots unchanged, including `variantId`, `colorName`, and `variantImageUrl`.
 
@@ -247,6 +255,6 @@ Retries using the same idempotency key and the same cart product/variant/quantit
 ## Deployment and existing data
 
 - No destructive migration or gallery conversion is needed. MongoDB adds the new optional product fields as documents are created/edited; legacy products behave as products with `variants: []`.
-- Existing cart item documents remain readable. Cart-line IDs are assigned on access for legacy lines if missing. No old cart item is assigned a color automatically.
-- Deploy the backend before enabling variant selection in the frontend. After administrators add variants to a product, customers with an older unselected cart line for that product must choose a color before checkout.
+- Existing cart item documents remain readable. Cart-line IDs are assigned on access for legacy lines if missing. No old cart item is assigned a color automatically; a line with no `variantId` continues to represent the main product.
+- No data migration is required. Deploy the backend to allow main-product lines for products with variants; existing variant selections and cart-line IDs remain unchanged.
 - Variant availability is tracked with `isAvailable`. This schema does not track per-variant quantity stock or reserve/decrement inventory.
